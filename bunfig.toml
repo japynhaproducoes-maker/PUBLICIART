@@ -1,0 +1,3 @@
+[install]
+# Guard contra supply-chain: ignora versões publicadas há menos de 24h.
+minimumReleaseAge = 86400

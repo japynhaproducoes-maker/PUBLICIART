@@ -1,0 +1,275 @@
+// Publiciart Builder — Prisma schema
+// Postgres. Ajuste DATABASE_URL no .env.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  user
+  agency
+  admin
+}
+
+enum PlanId {
+  start
+  pro
+  business
+  full
+}
+
+enum ProjectStatus {
+  draft
+  briefing_pending
+  generating
+  editing
+  review
+  published
+  archived
+}
+
+enum SiteStatus {
+  draft
+  ready
+  published
+  suspended
+  unpublished
+}
+
+enum SubscriptionStatus {
+  active
+  trialing
+  past_due
+  canceled
+}
+
+enum SectionType {
+  hero
+  about
+  services
+  gallery
+  pricing
+  testimonials
+  contact
+  cta
+  faq
+}
+
+enum OrderService {
+  logo
+  identidade_visual
+  artes_instagram
+  video
+  jingle
+  pagina_vendas
+  trafego
+  manutencao
+  ensaio_fotos
+  pacote_completo
+}
+
+enum OrderStatus {
+  requested
+  analyzing
+  quoted
+  approved
+  in_production
+  in_review
+  delivered
+  cancelled
+}
+
+enum AssetType {
+  image
+  video
+  logo
+  document
+}
+
+enum CreditTxType {
+  monthly_grant
+  purchase
+  consumption
+  refund
+  bonus
+}
+
+model User {
+  id              String   @id @default(cuid())
+  name            String
+  email           String   @unique
+  password_hash   String
+  avatar_url      String?
+  role            UserRole @default(user)
+  plan_id             PlanId             @default(start)
+  subscription_status SubscriptionStatus @default(active)
+  credits_balance     Int                @default(0)
+  created_at          DateTime           @default(now())
+
+  projects     Project[]
+  orders       Order[]
+  credit_tx    CreditTransaction[]
+  assets       Asset[]
+  reset_tokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id          String    @id @default(cuid())
+  user_id     String
+  token_hash  String    @unique
+  expires_at  DateTime
+  used_at     DateTime?
+  created_at  DateTime  @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model Plan {
+  id                PlanId   @id
+  name              String
+  price             Int
+  description       String
+  credits_per_month Int
+  max_projects      Int
+  features          String[]
+  is_popular        Boolean  @default(false)
+}
+
+model Project {
+  id            String        @id @default(cuid())
+  user_id       String
+  title         String
+  business_name String
+  segment       String
+  objective     String
+  status        ProjectStatus @default(draft)
+  template_id   String?
+  prd_data      Json?
+  prd_approved  Boolean       @default(false)
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
+
+  user       User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  briefing   Briefing?
+  site       Site?
+  orders     Order[]
+  assets     Asset[]
+
+  @@index([user_id])
+}
+
+model Briefing {
+  id              String   @id @default(cuid())
+  project_id      String   @unique
+  business_name   String
+  segment         String
+  city            String   @default("")
+  target_audience String   @default("")
+  main_offer      String   @default("")
+  services        String[] @default([])
+  whatsapp        String   @default("")
+  instagram       String   @default("")
+  visual_style    String   @default("")
+  goal            String   @default("")
+  notes           String   @default("")
+
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+}
+
+model Site {
+  id             String     @id @default(cuid())
+  project_id     String     @unique
+  title          String
+  slug           String     @unique
+  status         SiteStatus @default(draft)
+  published_url  String?
+  html_content   String?
+  theme_config   Json
+  created_at     DateTime   @default(now())
+  updated_at     DateTime   @updatedAt
+
+  project  Project            @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  sections GeneratedSection[]
+}
+
+model GeneratedSection {
+  id          String      @id @default(cuid())
+  site_id     String
+  type        SectionType
+  title       String
+  content     String
+  order_index Int
+  config      Json        @default("{}")
+
+  site Site @relation(fields: [site_id], references: [id], onDelete: Cascade)
+
+  @@index([site_id])
+}
+
+model Template {
+  id            String        @id @default(cuid())
+  name          String
+  segment       String
+  description   String
+  preview_image String
+  style_tags    String[]
+  sections      SectionType[]
+  is_premium    Boolean       @default(false)
+}
+
+model Asset {
+  id         String    @id @default(cuid())
+  user_id    String
+  project_id String?
+  type       AssetType
+  url        String
+  name       String
+  created_at DateTime  @default(now())
+
+  user    User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [project_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+}
+
+model Order {
+  id            String       @id @default(cuid())
+  user_id       String
+  project_id    String?
+  service_type  OrderService
+  service_label String
+  status        OrderStatus  @default(requested)
+  price         Int
+  quoted_price  Int?
+  notes         String       @default("")
+  admin_notes   String       @default("")
+  created_at    DateTime     @default(now())
+  updated_at    DateTime     @updatedAt
+
+  user    User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [project_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+}
+
+model CreditTransaction {
+  id          String       @id @default(cuid())
+  user_id     String
+  amount      Int
+  type        CreditTxType
+  description String
+  metadata    Json?
+  created_at  DateTime     @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([created_at])
+}

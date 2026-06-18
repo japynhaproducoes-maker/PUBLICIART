@@ -1,0 +1,78 @@
+# Publiciart Builder — Stack completa
+# Use: docker compose up --build
+# Coolify: importe este compose; preencha variáveis via UI.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-publiciart}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-publiciart}
+      POSTGRES_DB: ${POSTGRES_DB:-publiciart}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-publiciart} -d ${POSTGRES_DB:-publiciart}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      APP_URL: ${APP_URL}
+      CORS_ORIGIN: ${APP_URL}
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-10}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Publiciart Builder}
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      AI_API_URL: ${AI_API_URL}
+      AI_API_KEY: ${AI_API_KEY}
+      S3_ENDPOINT: ${STORAGE_ENDPOINT}
+      S3_BUCKET: ${STORAGE_BUCKET}
+      S3_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY}
+      S3_SECRET_ACCESS_KEY: ${STORAGE_SECRET_KEY}
+      S3_PUBLIC_URL: ${STORAGE_PUBLIC_URL}
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_APP_NAME: ${VITE_APP_NAME:-Publiciart Builder}
+        VITE_APP_URL: ${VITE_APP_URL}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+
+volumes:
+  postgres_data:
